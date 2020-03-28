@@ -1,4 +1,4 @@
-function PVCs = PVC_detect(signal,sigName,HRVparams)
+function PVCs = PVC_detect(signal,HRVparams)
 %
 % PVC_detect(signal,Fs,sigName,OutputFolder,th)
 % INPUTS: 
@@ -42,9 +42,6 @@ pvc_outputs=[];
 
 
 
-if nargin<3
-    error('Wrong number of input parameters: see help for more information')
-end
 
 Fs = HRVparams.Fs;          % sampling freqency of record
 th = HRVparams.PVC.qrsth;   % threshold for QRS detection (default: 0.1)
@@ -126,16 +123,16 @@ end
 
 PVCs = qrs_times(find(pvc_outputs==1));
 
-% write output
-annType = repmat('N',length(qrs_times),1);
-annType(find(pvc_outputs==1)) = 'V';
-
-% Create a Folder for Annotations
-AnnDir = [HRVparams.writedata filesep 'Annotation'];
-if ~exist(AnnDir, 'dir')
-   mkdir(AnnDir)
-   fprintf('Creating a new folder: "Annotation", folder is located in %s \n',[pwd filesep AnnDir]);
-end
-addpath(AnnDir)
-write_ann([AnnDir filesep sigName],HRVparams,'pvc',qrs_times,annType);
+% % write output
+% annType = repmat('N',length(qrs_times),1);
+% annType(find(pvc_outputs==1)) = 'V';
+% 
+% % Create a Folder for Annotations
+% AnnDir = [HRVparams.writedata filesep 'Annotation'];
+% if ~exist(AnnDir, 'dir')
+%    mkdir(AnnDir)
+%    fprintf('Creating a new folder: "Annotation", folder is located in %s \n',[pwd filesep AnnDir]);
+% end
+%%addpath(AnnDir)
+%%write_ann([AnnDir filesep sigName],HRVparams,'pvc',qrs_times,annType);
 

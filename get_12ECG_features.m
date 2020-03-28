@@ -1,4 +1,4 @@
-function features = get_12ECG_features(data, header_data)
+function [features, AF_param] = get_12ECG_features(data, header_data)
 
        % addfunction path needed
         addpath(genpath('Tools/'))
@@ -11,7 +11,7 @@ function features = get_12ECG_features(data, header_data)
 	HRVparams.Fs=Fs;
         HRVparams.PeakDetect.windows = floor(Total_time-1);
         HRVparams.windowlength = floor(Total_time);
-
+    HRVparams.PVC.qrsth = 0.1;
 	try
 
                 for i =1:num_leads
@@ -28,12 +28,27 @@ function features = get_12ECG_features(data, header_data)
                 XYZLeads = Kors_git(ECG12filt);
 
                 VecMag = vecnorm(XYZLeads');
-
-
+                AF_param = zeros(1,14);
+                features = NaN(1,24);
                 % Convert ECG waveform in rr intervals
                 [t, rr, jqrs_ann, SQIvalue , tSQI] = ConvertRawDataToRRIntervals(VecMag, HRVparams, recording);
                 sqi = [tSQI', SQIvalue'];
+                if (~isempty(rr)) 
+                    while (length (rr)<12)          
+                       rr = [rr rr]; 
+                    end
+                    if (length (rr)>59)
+                       rr = rr(1:59); 
+                    end
 
+                    AF_param = AF_features(round(rr*Fs),Fs);
+                end
+                %AF =  SVM_AFdetection_withoutTrainingModel(features);
+                
+                
+%                 [afresults, ~] = PerformAFdetection(t,rr,sqi,HRVparams);
+                
+                %PVCs = PVC_detect(ECG12filt,HRVparams);
                 % Find fiducial points using ECGKit
                 ECG_header.nsig = 1; ECG_header.freq = Fs; ECG_header.nsamp = length(VecMag);
                 wavedet_config.setup.wavedet.QRS_detection_only = 0;
@@ -50,6 +65,7 @@ function features = get_12ECG_features(data, header_data)
 
 	catch
 		features = NaN(1,24);
+        AF_param = zeros(1,14);
 	end
 
 end

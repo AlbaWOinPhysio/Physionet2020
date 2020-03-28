@@ -1,4 +1,4 @@
-function [afresults, AfAnalysisWindows, AFfile] = PerformAFdetection(subjectID,trr,rr,sqi,HRVparams)    
+function [afresults, AfAnalysisWindows] = PerformAFdetection(trr,rr,sqi,HRVparams)    
 %   PerformAFdetection(subjectID,trr,rr,HRVparams)  
 %
 %	OVERVIEW:
@@ -84,8 +84,8 @@ end
 % 2. Export AF Data as CSV File
 
 afresults = AFtest(:);
-afcol_titles = {'AFtest'};
-
-outputType = 'AF';
-AFfile = SaveHRVoutput(subjectID,AfAnalysisWindows,afresults, ...
-    afcol_titles, outputType, HRVparams, trr, rr);
+% afcol_titles = {'AFtest'};
+% 
+% outputType = 'AF';
+% AFfile = SaveHRVoutput(subjectID,AfAnalysisWindows,afresults, ...
+%     afcol_titles, outputType, HRVparams, trr, rr);

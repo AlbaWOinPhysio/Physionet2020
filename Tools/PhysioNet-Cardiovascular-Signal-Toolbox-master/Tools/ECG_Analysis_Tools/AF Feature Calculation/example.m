@@ -8,7 +8,7 @@
 
 clear all
 close all
-clc
+%clc
 
 data=load('RR_example.txt');
 features = AF_features(data(7,1:53),250);
