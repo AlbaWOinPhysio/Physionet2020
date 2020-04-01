@@ -6,9 +6,14 @@ function [score, label] = run_12ECG_classifier(data,header_data,classes, model)
     %score = ones([1,num_classes]);
     
     % Use your classifier here to obtain a label and score for each class.
-    [features, AF_param]  = get_12ECG_features(data,header_data);
+    [GEH, AF_param,PVC]  = get_12ECG_features(data,header_data);
     
-    score = mnrval(model.A,features);
+    dAC_predicts = predict(model.GEH,GEH);
+    list = strsplit (dAC_predicts{1}, ',');
+    
+    for i=1:length(list)
+        label(strcmp (classes, list{i})) = 1;
+    end
     
     AF = predict(model.AF, AF_param);
     
@@ -16,11 +21,11 @@ function [score, label] = run_12ECG_classifier(data,header_data,classes, model)
         label(strcmp (classes, 'AF')) = 1;
     end
     
+    if (PVC > 0.1)
+        label(strcmp (classes, 'PVC')) = 1;
+    end
     		
-    [~,idx] = max (score);
-
-    label(idx)=1;
-    
+    score = label;
 end
 
 

@@ -1,4 +1,4 @@
-function PVCs = PVC_detect(signal,HRVparams)
+function [pvc_outputs,qrs_times] = PVC_detect(signal,HRVparams)
 %
 % PVC_detect(signal,Fs,sigName,OutputFolder,th)
 % INPUTS: 
@@ -99,7 +99,7 @@ if remflag == 1  % now do remainder of signal
     if t_hours<1
         edge_signal=ones(overlap_2*Fs,1)*median(signal); % we add half of overlap data before the first hour data
     end
-    signal=[edge_signal; signal];
+    signal=[edge_signal; signal'];
 
     % call detectpvc()
     [qrs_time, pvc_output] = detectpvc2(signal,Fs,th);
@@ -121,7 +121,7 @@ if remflag == 1  % now do remainder of signal
 end
 
 
-PVCs = qrs_times(find(pvc_outputs==1));
+%PVCs = qrs_times(find(pvc_outputs==1));
 
 % % write output
 % annType = repmat('N',length(qrs_times),1);
