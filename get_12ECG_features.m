@@ -87,8 +87,6 @@ function [result] = get_12ECG_features(data, header_data)
     result.ST_elevation = ECG_PeriodsAndPeaks.ST_elevation;
     result.ECG_periods = ECG_PeriodsAndPeaks.ECG_Periods;
             
-    plik = './dane/'+string(recording) + '_ECG_PP.mat';
-    save (plik, '-struct', 'ECG_PeriodsAndPeaks');   
 end
 
 function PVC = get_PVC_feature (ECG,HRVparams)
