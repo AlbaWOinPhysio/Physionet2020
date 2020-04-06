@@ -1,8 +1,8 @@
-function [features, AF_param, PVC] = get_12ECG_features(data, header_data)
+function [result] = get_12ECG_features(data, header_data)
 
-       % addfunction path needed
-        addpath(genpath('Tools/'))
-        load('HRVparams_12ECG','HRVparams')
+   % addfunction path needed
+    addpath(genpath('Tools/'))
+    load('HRVparams_12ECG','HRVparams')
 
 	% read number of leads, sample frequency and gain from the header.	
 
@@ -13,31 +13,23 @@ function [features, AF_param, PVC] = get_12ECG_features(data, header_data)
         HRVparams.windowlength = floor(Total_time);
     HRVparams.PVC.qrsth = 0.1;
 	
-
+    p = gcp();
+    
     parfor i =1:num_leads
-            Lead12wGain(i,:) = data(i,:)* gain(i);
+        Lead12wGain(i,:) = data(i,:)* gain(i);
     end
-
     
     % median filter to remove bw
     parfor i=1:num_leads
-            ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
+        ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
     end
-
-    try 
-        PVC_flags = 0;
-        QRS_numb = 0;
-        %select = [7, 8, 9, 10];
-        %for i=1:length(select)
-            [pvc_outputs,QRS] = PVC_detect(ECG12filt(7,:),HRVparams);
-            PVC_flags = PVC_flags + sum (pvc_outputs);
-            QRS_numb = QRS_numb + length(QRS);
-        %end
-        PVC = PVC_flags / QRS_numb;
-    catch
-		PVC = 0;
-    end    
-    try          
+        ECG_PeriodsAndPeaks.ST_elevation = NaN;
+        ECG_PeriodsAndPeaks.ECG_Periods = NaN;
+		features = NaN(1,24);
+        features(1)=age;
+        features(2)=sex;      
+        AF_param = zeros(1,14);
+    try             
         % convert 12Leads to XYZ leads using Kors transformation
         XYZLeads = Kors_git(ECG12filt);
 
@@ -47,37 +39,245 @@ function [features, AF_param, PVC] = get_12ECG_features(data, header_data)
         [t, rr, jqrs_ann, SQIvalue , tSQI] = ConvertRawDataToRRIntervals(VecMag, HRVparams, recording);
         sqi = [tSQI', SQIvalue'];
         
-        if (~isempty(rr)) 
-            while (length (rr)<12)          
-               rr = [rr rr]; 
-            end
-            if (length (rr)>59)
-               rr = rr(1:59); 
-            end
-
-            AF_param = AF_features(round(rr*Fs),Fs);
-        end
-
-
         %
         % Find fiducial points using ECGKit
         ECG_header.nsig = 1; ECG_header.freq = Fs; ECG_header.nsamp = length(VecMag);
         wavedet_config.setup.wavedet.QRS_detection_only = 0;
+        
         [Fid_pts,~,~] = wavedet_3D_ECGKit(VecMag', jqrs_ann', ECG_header, wavedet_config);
 
+    catch
+        ECG_PeriodsAndPeaks.ST_elevation = NaN;
+        ECG_PeriodsAndPeaks.ECG_Periods = NaN;
+		features = NaN(1,24);
+        features(1)=age;
+        features(2)=sex;      
+        AF_param = zeros(1,14);
+    end
+    
+    
+    if (exist('rr','var'))
+        if (~isempty(rr))
+            f_AF = parfeval(p,@get_AF_Parameters,1,rr,Fs);
+        end
+    end
+
+    if (exist('Fid_pts','var'))
+        f_st = parfeval(p,@extract_ECG_Periods,1,ECG12filt,Fid_pts,Fs);
+        f_GEH = parfeval(p,@get_GEH_feature,1,XYZLeads,Fid_pts,Fs, age, sex);
+    end
+    try 
+        PVC = get_PVC_feature (ECG12filt(7,:),HRVparams);
+
+        if (exist('f_st','var'))   
+           ECG_PeriodsAndPeaks = fetchOutputs(f_st);
+        end
+        if (exist('f_GEH','var')) 
+            features = fetchOutputs(f_GEH);
+        end
+        if (exist('f_AF','var')) 
+            AF_param = fetchOutputs(f_AF);
+        end
+    catch
+       PVC = -1; 
+    end
+    result.GEH = features;
+    result.AF_param = AF_param;
+    result.PVC = PVC;
+    result.ST_elevation = ECG_PeriodsAndPeaks.ST_elevation;
+    result.ECG_periods = ECG_PeriodsAndPeaks.ECG_Periods;
+            
+    plik = './dane/'+string(recording) + '_ECG_PP.mat';
+    save (plik, '-struct', 'ECG_PeriodsAndPeaks');   
+end
+
+function PVC = get_PVC_feature (ECG,HRVparams)
+    try 
+        PVC_flags = 0;
+        QRS_numb = 0;
+        
+        [pvc_outputs,QRS] = PVC_detect(ECG,HRVparams);
+        PVC_flags = PVC_flags + sum (pvc_outputs);
+        QRS_numb = QRS_numb + length(QRS);
+        
+        PVC = PVC_flags / QRS_numb;
+    catch
+		PVC = -1;
+    end 
+end
+
+function features = get_GEH_feature (XYZLeads,Fid_pts,Fs, age, sex)
+    try
         [XYZ_Median,Fid_pts_Median] = Time_coherent_code_github(XYZLeads,Fid_pts,Fs);
-
         GEH_features = GEH_analysis_git(XYZ_Median,Fid_pts_Median,Fs);
-
         features(1)=age;
         features(2)=sex;
         features(3:24)=GEH_features;
-
-
     catch
-		features = NaN(1,24);
-        AF_param = zeros(1,14);
+        features = NaN(1,24);
+        features(1)=age;
+        features(2)=sex;
     end
-
 end
 
+function AF_param = get_AF_Parameters(rr,Fs)
+    try    
+        if (~isempty(rr)) 
+            while (length (rr)<12)          
+               rr = [rr rr]; 
+            end
+        if (length (rr)>59)
+           rr = rr(1:59); 
+        end
+
+            AF_param = AF_features(round(rr*Fs),Fs);
+        end
+    catch
+        AF_param = zeros(1,14);
+    end
+end
+
+function result = extract_ECG_Periods (ECG,Fid_pts,Fs)
+    ECG_leads = 1:12;
+    ST_elevation = zeros(length(ECG_leads),1);
+    R_sign = zeros(length(ECG_leads),1);
+    ST_data={};
+    
+    
+    QRSoff = Fid_pts.QRSoff;
+    QRSon = Fid_pts.QRSon;
+    Toff = Fid_pts.Toff;
+    R = Fid_pts.R;
+    P = Fid_pts.P;
+    
+    %If possible, compute period (values are in seconds).
+    ECG_Periods.PR = zeros (length (R),1);
+    ECG_Periods.QS = zeros (length (R),1);
+    ECG_Periods.QR = zeros (length (R),1);
+    for i=1:length (R)
+        if (isnan(R(i))||isnan(P(i)))
+            ECG_Periods.PR(i) = nan;
+        else
+            ECG_Periods.PR(i) = (R(i) - P(i))*(1/Fs);   
+        end 
+        
+        if (isnan(QRSoff(i))||isnan(QRSon(i)))
+            ECG_Periods.QS(i) = nan;
+        else
+            ECG_Periods.QS(i) = (QRSoff(i) - QRSon(i))*(1/Fs);   
+        end
+        
+        if (isnan(R(i))||isnan(QRSon(i)))
+            ECG_Periods.QR(i) = nan;
+        else
+            ECG_Periods.QR(i) = (R(i) - QRSon(i))*(1/Fs);   
+        end
+    end
+    
+    for k=1:length(ECG_leads)
+        nr = ECG_leads(k);
+        d = (diff(ECG(nr,:)));
+        QRSend =QRSoff;  
+        QRSstart = QRSon;
+        
+        %fit QRS end to J point
+        for a = 1:length(QRSend)
+            if (~(isnan(QRSend(a))))
+                if (ECG(nr,QRSend(a))< mean(ECG(nr,:))-(std(ECG(nr,:)*0.5)))
+                    bp =0;
+                    flag = true;
+                    if (d(QRSend(a))>0)
+                        znak = 1;
+                    else
+                        znak = 0;
+                    end
+                    while (flag)
+                        QRSend(a) = QRSend(a) + 1;
+                        bp = bp + 1;
+                        if (bp >50)
+                            break;
+                        end
+                        if (d(QRSend(a))<0 && znak == 1)
+                            break;
+                        end
+                        if (d(QRSend(a))>0 && znak == 0)
+                            break;
+                        end
+                    end
+                end
+            end
+        end
+        
+        for a = 1:length(QRSstart)
+            if (~(isnan(QRSstart(a))))
+                if (ECG(nr,QRSstart(a))> mean(ECG(nr,:))+std(ECG(nr,:)))
+                    bp =0;
+                    flag = true;
+                    if (d(QRSstart(a))>0)
+                        znak = 1;
+                    else
+                        znak = 0;
+                    end
+                    while (flag)
+                        QRSstart(a) = QRSstart(a) -1;
+                        bp = bp + 1;
+                        if (bp >50)
+                            break;
+                        end
+                        if (d(QRSstart(a))<0 && znak == 1)
+                            break;
+                        end
+                        if (d(QRSstart(a))>0 && znak == 0)
+                            break;
+                        end
+                    end
+                end
+            end
+        end
+        J_Value = [];
+        for lQ = 1: length (QRSend)
+            if (isnan(QRSend(lQ)))
+                J_Value(end+1) = nan;
+            else
+                J_Value(end+1) = (ECG(ECG_leads(k),(QRSend(lQ))));   
+            end    
+        end
+
+        ECG_IzoLine = [nan];
+
+        for j=2:length(Toff)
+            if (~(isnan(Toff(j-1)) || isnan(QRSstart(j))))
+                ECG_IzoLine (end+1) = median(ECG(ECG_leads(k),Toff(j-1):QRSstart(j)));
+            else
+                ECG_IzoLine (end+1) = nan;
+            end
+        end
+
+        R_peak_value = mean(ECG(nr,rmmissing(R)))-mean(rmmissing(ECG_IzoLine));
+        if (R_peak_value>0)
+            R_sign (k) = 1;
+        else
+            R_sign (k) = -1;
+        end
+
+        pom = J_Value-ECG_IzoLine;
+        ST_elevation(k) = median(rmmissing(pom));
+        
+        R_peak = zeros (1,length(R));
+        for b=1:length(R)
+            if isnan(R(b))
+                R_peak(b) = nan;
+            else
+                R_peak(b) = ECG(nr,R(b));
+            end
+        end
+        
+        ST_data{k} = [pom'; J_Value'; ECG_IzoLine'; R_peak'];
+    end
+    
+
+    
+    result.ST_elevation = ST_elevation.*R_sign;
+    result.ST_data = ST_data;
+    result.ECG_Periods = ECG_Periods;
+end
