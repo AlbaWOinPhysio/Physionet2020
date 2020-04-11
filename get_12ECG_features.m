@@ -49,6 +49,7 @@ function [result] = get_12ECG_features(data, header_data)
     catch
         ECG_PeriodsAndPeaks.ST_elevation = NaN;
         ECG_PeriodsAndPeaks.ECG_Periods = NaN;
+        ECG_PeriodsAndPeaks.ST_data = NaN;
 		features = NaN(1,24);
         features(1)=age;
         features(2)=sex;      
@@ -81,11 +82,13 @@ function [result] = get_12ECG_features(data, header_data)
     catch
        PVC = -1; 
     end
+    
     result.GEH = features;
     result.AF_param = AF_param;
     result.PVC = PVC;
-    result.ST_elevation = ECG_PeriodsAndPeaks.ST_elevation;
-    result.ECG_periods = ECG_PeriodsAndPeaks.ECG_Periods;
+    result.resultVector = vectorization (ECG_PeriodsAndPeaks.ST_data,ECG_PeriodsAndPeaks.ECG_Periods);
+
+    
             
 end
 
@@ -269,13 +272,155 @@ function result = extract_ECG_Periods (ECG,Fid_pts,Fs)
                 R_peak(b) = ECG(nr,R(b));
             end
         end
+        element = struct('ST_elevations',pom, 'J_Value',J_Value, 'ECG_IzoLine',ECG_IzoLine, 'R_peak',R_peak);
+ 
         
-        ST_data{k} = [pom'; J_Value'; ECG_IzoLine'; R_peak'];
+        ST_data{k} = element;
     end
-    
-
-    
+       
     result.ST_elevation = ST_elevation.*R_sign;
     result.ST_data = ST_data;
     result.ECG_Periods = ECG_Periods;
+end
+
+function resultVector = vectorization (ECG_Values,ECG_Periods)
+    resultVector = zeros(1,108);
+    p = 1;
+    if (length(ECG_Values)==12)
+        for n=1:12
+              ST_elevations = rmmissing(ECG_Values{n}.ST_elevations); 
+              ECG_IzoLine = rmmissing(ECG_Values{n}.ECG_IzoLine); 
+              if (~isempty(ST_elevations))
+                  resultVector (p) =  min (ST_elevations);
+                  p = p + 1;
+                  resultVector (p) =  max (ST_elevations);
+                  p = p + 1;
+                  resultVector (p) =  median (ST_elevations);
+                  p = p + 1;
+                  resultVector (p) =  std (ST_elevations);
+                   p = p + 1;
+              else
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+              end
+
+              if (~isempty(ECG_IzoLine))
+                  resultVector (p) =  min (ECG_IzoLine);
+                  p = p + 1;
+                  resultVector (p) =  max (ECG_IzoLine);
+                  p = p + 1;
+                  resultVector (p) =  median (ECG_IzoLine);
+                  p = p + 1;
+                  resultVector (p) =  std (ECG_IzoLine);
+                  p = p + 1;
+              else
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+                   resultVector (p) = nan;
+                   p = p + 1;
+              end
+        end
+    else
+       for i=1:96
+           resultVector (p) = nan;
+           p = p + 1;
+       end
+    end
+      if (isstruct(ECG_Periods))
+          PR = rmmissing(ECG_Periods.PR);
+          if (~isempty(PR))
+              resultVector (p) =  min (PR);
+              p = p + 1;
+              resultVector (p) =  max (PR);
+              p = p + 1;
+              resultVector (p) =  median (PR);
+              p = p + 1;
+              resultVector (p) =  std (PR);
+              p = p + 1;
+          else
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+          end
+
+          QS = rmmissing(ECG_Periods.QS);
+          if (~isempty(QS))
+              resultVector (p) =  min (QS);
+              p = p + 1;
+              resultVector (p) =  max (QS);
+              p = p + 1;
+              resultVector (p) =  median (QS);
+              p = p + 1;
+              resultVector (p) =  std (QS);
+              p = p + 1;
+          else
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+          end
+          QR = rmmissing(ECG_Periods.QR);
+          if (~isempty(QR))
+              resultVector (p) =  min (QR);
+              p = p + 1;
+              resultVector (p) =  max (QR);
+              p = p + 1;
+              resultVector (p) =  median (QR);
+              p = p + 1;
+              resultVector (p) =  std (QR);
+              p = p + 1;
+          else
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+               resultVector (p) = nan;
+               p = p + 1;
+          end
+      else
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;
+           p = p + 1;
+           resultVector (p) = nan;            
+      end
 end
