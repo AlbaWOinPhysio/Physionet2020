@@ -1,16 +1,19 @@
-function [score, label] = run_12ECG_classifier(data,header_data,classes, ~)
+function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_model)
 
-    
+
+	model=loaded_model.model;
+	classes=loaded_model.classes;
+
     num_classes = length(classes);
 
     label = zeros([1,num_classes]);
-    
+    score = ones([1,num_classes]);
     
     % Use your classifier here to obtain a label and score for each class.
-    [Result]  = get_12ECG_features(data,header_data);
+    features = get_12ECG_features(data,header_data);
+
     
-    prepared_data = [Result.GEH, Result.AF_param([2,3,4,5,6,7,12,14]), Result.PVC ,Result.resultVector];
-    score = myNeuralNetworkBayesian (prepared_data);	
+    score =model(features');		
     [~,idx] = max (score);
 
     label(idx)=1;

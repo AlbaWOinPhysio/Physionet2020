@@ -17,7 +17,7 @@
 
 clear all
 close all
-%clc
+clc
 
 training_feature = load('training_feature.txt');
 training_class   = load('training_class.txt');
@@ -25,7 +25,7 @@ test_feature     = load('test_feature.txt');
 test_class       = load('test_class.txt');
 
 % Function 2
-%Index_train = SVM_AFdetection_withTrainingModel(training_feature, training_class, test_feature,test_class);
+Index_train = SVM_AFdetection_withTrainingModel(training_feature, training_class, test_feature,test_class);
 
 % Function 1
 Index_test  = SVM_AFdetection_withoutTrainingModel(test_feature,test_class);

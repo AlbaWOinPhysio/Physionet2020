@@ -1,8 +1,8 @@
-function [result] = get_12ECG_features(data, header_data)
+function features = get_12ECG_features(data, header_data)
 
-   % addfunction path needed
-    addpath(genpath('Tools/'))
-    load('HRVparams_12ECG','HRVparams')
+       % addfunction path needed
+        addpath(genpath('Tools/'))
+        load('HRVparams_12ECG','HRVparams')
 
 	% read number of leads, sample frequency and gain from the header.	
 
@@ -11,51 +11,53 @@ function [result] = get_12ECG_features(data, header_data)
 	HRVparams.Fs=Fs;
         HRVparams.PeakDetect.windows = floor(Total_time-1);
         HRVparams.windowlength = floor(Total_time);
-    HRVparams.PVC.qrsth = 0.1;
-	
+        HRVparams.PVC.qrsth = 0.1;
+	%parraler computing
     p = gcp();
-    
-    parfor i =1:num_leads
-        Lead12wGain(i,:) = data(i,:)* gain(i);
-    end
-    
-    % median filter to remove bw
-    parfor i=1:num_leads
-        ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
-    end
-        ECG_PeriodsAndPeaks.ST_elevation = NaN;
-        ECG_PeriodsAndPeaks.ECG_Periods = NaN;
-		features = NaN(1,24);
-        features(1)=age;
-        features(2)=sex;      
-        AF_param = zeros(1,14);
-    try             
+
+	ECG_PeriodsAndPeaks.ST_elevation = NaN;
+    ECG_PeriodsAndPeaks.ECG_Periods = NaN;
+    features_GEH = NaN(1,24);
+    features_GEH(1)=age;
+    features_GEH(2)=sex;      
+    AF_param = zeros(1,14);
+        
+        parfor i =1:num_leads
+                Lead12wGain(i,:) = data(i,:)* gain(i);
+        end
+
+
+        % median filter to remove bw
+        parfor i=1:num_leads
+                ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
+        end
+    try
+
         % convert 12Leads to XYZ leads using Kors transformation
         XYZLeads = Kors_git(ECG12filt);
 
         VecMag = vecnorm(XYZLeads');
-        
+
+
         % Convert ECG waveform in rr intervals
         [t, rr, jqrs_ann, SQIvalue , tSQI] = ConvertRawDataToRRIntervals(VecMag, HRVparams, recording);
         sqi = [tSQI', SQIvalue'];
-        
-        %
+
         % Find fiducial points using ECGKit
         ECG_header.nsig = 1; ECG_header.freq = Fs; ECG_header.nsamp = length(VecMag);
         wavedet_config.setup.wavedet.QRS_detection_only = 0;
-        
         [Fid_pts,~,~] = wavedet_3D_ECGKit(VecMag', jqrs_ann', ECG_header, wavedet_config);
 
     catch
         ECG_PeriodsAndPeaks.ST_elevation = NaN;
         ECG_PeriodsAndPeaks.ECG_Periods = NaN;
         ECG_PeriodsAndPeaks.ST_data = NaN;
-		features = NaN(1,24);
-        features(1)=age;
-        features(2)=sex;      
+		features_GEH = NaN(1,24);
+        features_GEH(1)=age;
+        features_GEH(2)=sex;      
         AF_param = zeros(1,14);
-    end
-    
+	end
+
     
     if (exist('rr','var'))
         if (~isempty(rr))
@@ -74,7 +76,7 @@ function [result] = get_12ECG_features(data, header_data)
            ECG_PeriodsAndPeaks = fetchOutputs(f_st);
         end
         if (exist('f_GEH','var')) 
-            features = fetchOutputs(f_GEH);
+            features_GEH = fetchOutputs(f_GEH);
         end
         if (exist('f_AF','var')) 
             AF_param = fetchOutputs(f_AF);
@@ -83,12 +85,12 @@ function [result] = get_12ECG_features(data, header_data)
        PVC = -1; 
     end
     
-    result.GEH = features;
+    result.GEH = features_GEH;
     result.AF_param = AF_param;
     result.PVC = PVC;
     result.resultVector = vectorization (ECG_PeriodsAndPeaks.ST_data,ECG_PeriodsAndPeaks.ECG_Periods);
 
-    
+    features = [features_GEH AF_param PVC  result.resultVector];
             
 end
 
@@ -424,3 +426,4 @@ function resultVector = vectorization (ECG_Values,ECG_Periods)
            resultVector (p) = nan;            
       end
 end
+
