@@ -17,6 +17,7 @@ function features = get_12ECG_features(data, header_data)
 
 	ECG_PeriodsAndPeaks.ST_elevation = NaN;
     ECG_PeriodsAndPeaks.ECG_Periods = NaN;
+    ECG_PeriodsAndPeaks.ST_data = NaN;
     features_GEH = NaN(1,24);
     features_GEH(1)=age;
     features_GEH(2)=sex;      
