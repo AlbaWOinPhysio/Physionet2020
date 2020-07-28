@@ -1,6 +1,6 @@
 function  model = train_12ECG_classifier(input_directory,output_directory)
 
-disp('Loading data...')
+disp('Parsing data...')
 
 % Find files.
 input_files = {};
@@ -15,9 +15,10 @@ classes = get_classes(input_directory,input_files);
 
 num_classes = length(classes);
 num_files = length(input_files);
-Total_data=cell(1,num_files);
-Total_header=cell(1,num_files);
+% Total_data=cell(1,num_files);
+% Total_header=cell(1,num_files);
 
+label=zeros(num_files,num_classes);
 
 % Iterate over files.
 for i = 1:num_files
@@ -29,29 +30,12 @@ for i = 1:num_files
     
     [data,hea_data] = load_challenge_data(tmp_input_file);
     
-    Total_data{i}=data;
-    Total_header{i}=hea_data;
+%     Total_data{i}=data;
+%     Total_header{i}=hea_data;
     
-end
-
-disp('Training model..')
-
-label=zeros(num_files,num_classes);
-
-for i = 1:num_files
-    
-    disp(['    ', num2str(i), '/', num2str(num_files), '...']);
-    
-    data = Total_data{i};
-    header_data = Total_header{i};
-    
-    tmp_features = get_12ECG_features(data,header_data);
-    
-    features(i,:)=tmp_features;
-
-    for j = 1 : length(header_data)
-        if startsWith(header_data{j},'#Dx')
-            tmp = strsplit(header_data{j},': ');
+    for j = 1 : length(hea_data)
+        if startsWith(hea_data{j},'#Dx')
+            tmp = strsplit(hea_data{j},': ');
             tmp_c = strsplit(tmp{2},',');
             for k=1:length(tmp_c)
                 idx=find(strcmp(classes,tmp_c{k}));
@@ -61,14 +45,15 @@ for i = 1:num_files
         end
     end
     
-    
+    tmp_features = get_12ECG_features(data,hea_data);
+    features(i,:)=tmp_features;
 end
-save('small_data.mat','features','label','classes')
+
+disp('Training model..')
+
 net = feedforwardnet(length(classes)*2);
-
+net.trainParam.time = 10000;
 model = trainbr(net,features',label');
-%model = mnrfit(features,label,'model','hierarchical');
-
 save_12_ECG_model(model,output_directory,classes);
 
 end
