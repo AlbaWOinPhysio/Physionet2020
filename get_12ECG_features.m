@@ -21,7 +21,7 @@ function features = get_12ECG_features(data, header_data)
     features_GEH = NaN(1,24);
     features_GEH(1)=age;
     features_GEH(2)=sex;      
-    AF_param = zeros(1,14);
+    AF_param = NaN(1,14);
         
         parfor i =1:num_leads
                 Lead12wGain(i,:) = data(i,:)* gain(i);

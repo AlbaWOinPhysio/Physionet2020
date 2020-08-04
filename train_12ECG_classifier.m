@@ -13,13 +13,13 @@ end
 % read number of unique classes
 classes = get_classes(input_directory,input_files);
 
-num_classes = length(classes);
+supportedClasses = {'270492004';'164889003';'164890007';'426627000';'713427006';'713426002';'445118002';'39732003';'164909002';'251146004';'698252002';'10370003';'284470004';'427172004';'164947007';'111975006';'164917005';'47665007';'59118001';'427393009';'426177001';'426783006';'427084000';'63593006';'164934002';'59931005';'17338001'};
+
+
 num_files = length(input_files);
-% Total_data=cell(1,num_files);
-% Total_header=cell(1,num_files);
-
-label=zeros(num_files,num_classes);
-
+%index - nr - number of valid sample (from supported classes)
+nr = 1;
+labels = zeros (nr, length(supportedClasses));
 % Iterate over files.
 for i = 1:num_files
     disp(['    ', num2str(i), '/', num2str(num_files), '...'])
@@ -32,28 +32,44 @@ for i = 1:num_files
     
 %     Total_data{i}=data;
 %     Total_header{i}=hea_data;
-    
+    flag = false;
     for j = 1 : length(hea_data)
         if startsWith(hea_data{j},'#Dx')
             tmp = strsplit(hea_data{j},': ');
             tmp_c = strsplit(tmp{2},',');
             for k=1:length(tmp_c)
-                idx=find(strcmp(classes,tmp_c{k}));
-                label(i,idx)=1;
+                idx=strcmp(supportedClasses,tmp_c{k});
+                if sum(idx)>0
+                    labels(nr,idx)=1;
+                    flag = true;
+                end
             end
             break
         end
     end
-    
-    tmp_features = get_12ECG_features(data,hea_data);
-    features(i,:)=tmp_features;
+    if (flag)
+        tmp_features = get_12ECG_features(data,hea_data);
+        features(nr,:)=tmp_features;
+        nr = nr + 1;
+    end
 end
+%remove classes with no samples
+classes = supportedClasses (any(labels,1));
+labels = labels(:,any(labels,1));
 
 disp('Training model..')
+trainFcn = 'trainscg';  % Scaled conjugate gradient backpropagation.
 
-net = feedforwardnet(length(classes)*2);
+% Create a Pattern Recognition Network
+hiddenLayerSize = 57;
+net = patternnet(hiddenLayerSize, trainFcn);
+% Setup Division of Data for Training, Validation, Testing
+net.divideParam.trainRatio = 70/100;
+net.divideParam.valRatio = 15/100;
+net.divideParam.testRatio = 15/100;
 net.trainParam.time = 10000;
-model = trainbr(net,features',label');
+
+model = train(net,features',labels');
 save_12_ECG_model(model,output_directory,classes);
 
 end
