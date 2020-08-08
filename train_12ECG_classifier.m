@@ -11,15 +11,15 @@ for f = dir(input_directory)'
 end
 
 % read number of unique classes
-%classes = get_classes(input_directory,input_files);
+classes = get_classes(input_directory,input_files);
 
-supportedClasses = {'270492004';'164889003';'164890007';'426627000';'713427006';'713426002';'445118002';'39732003';'164909002';'251146004';'698252002';'10370003';'284470004';'427172004';'164947007';'111975006';'164917005';'47665007';'59118001';'427393009';'426177001';'426783006';'427084000';'63593006';'164934002';'59931005';'17338001'};
+%supportedClasses = {'270492004';'164889003';'164890007';'426627000';'713427006';'713426002';'445118002';'39732003';'164909002';'251146004';'698252002';'10370003';'284470004';'427172004';'164947007';'111975006';'164917005';'47665007';'59118001';'427393009';'426177001';'426783006';'427084000';'63593006';'164934002';'59931005';'17338001'};
 
 
 num_files = length(input_files);
 %index - nr - number of valid sample (from supported classes)
 nr = 1;
-labels = zeros (nr, length(supportedClasses));
+labels = zeros (nr, length(classes));
 % Iterate over files.
 for i = 1:num_files
     disp(['    ', num2str(i), '/', num2str(num_files), '...'])
@@ -38,7 +38,7 @@ for i = 1:num_files
             tmp = strsplit(hea_data{j},': ');
             tmp_c = strsplit(tmp{2},',');
             for k=1:length(tmp_c)
-                idx=strcmp(supportedClasses,tmp_c{k});
+                idx=strcmp(classes,tmp_c{k});
                 if sum(idx)>0
                     labels(nr,idx)=1;
                     flag = true;
@@ -54,14 +54,14 @@ for i = 1:num_files
     end
 end
 %remove classes with no samples
-classes = supportedClasses (any(labels,1));
+%classes = supportedClasses (any(labels,1));
 labels = labels(:,any(labels,1));
 
 disp('Training model..')
 trainFcn = 'trainscg';  % Scaled conjugate gradient backpropagation.
 
 % Create a Pattern Recognition Network
-hiddenLayerSize = 57;
+hiddenLayerSize = length(classes);
 net = patternnet(hiddenLayerSize, trainFcn);
 % Setup Division of Data for Training, Validation, Testing
 net.divideParam.trainRatio = 70/100;

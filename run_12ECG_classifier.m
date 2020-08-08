@@ -13,7 +13,7 @@ function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_
     features = get_12ECG_features(data,header_data);
 
     
-    score =model(features');		
+    score =model(features')';		
     [~,idx] = max (score);
 
     label(idx)=1;
