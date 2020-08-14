@@ -15,34 +15,38 @@ function features = get_12ECG_features(data, header_data)
 	%parraler computing
     p = gcp();
 
-	ECG_PeriodsAndPeaks.ST_elevation = NaN;
-    ECG_PeriodsAndPeaks.ECG_Periods = NaN;
-    ECG_PeriodsAndPeaks.ST_data = NaN;
-    features_GEH = NaN(1,24);
+    ECG_ST_Elevations = NaN(1,12);
+    ECG_Periods.PR = NaN;
+    ECG_Periods.QS = NaN;
+    ECG_Periods.QR = NaN;
+    ECG_Periods.PT = NaN;
+    ECG_Periods.TP = NaN;
+    ECG_Periods.RAPR = NaN;
+    features_GEH = NaN(1,22);
     features_GEH(1)=age;
     features_GEH(2)=sex;      
     AF_param = NaN(1,14);
-        
-        parfor i =1:num_leads
-                Lead12wGain(i,:) = data(i,:)* gain(i);
-        end
+    R_elevation = NaN(1,12);
+    QRS_areas_vector = NaN(1,48);
+    parfor i =1:num_leads
+            Lead12wGain(i,:) = data(i,:)* gain(i);
+    end
 
 
-        % median filter to remove bw
-        parfor i=1:num_leads
-                ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
-        end
+    % median filter to remove bw
+    parfor i=1:num_leads
+            ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
+    end
+    
     try
-
         % convert 12Leads to XYZ leads using Kors transformation
         XYZLeads = Kors_git(ECG12filt);
-
         VecMag = vecnorm(XYZLeads');
 
 
         % Convert ECG waveform in rr intervals
-        [t, rr, jqrs_ann, SQIvalue , tSQI] = ConvertRawDataToRRIntervals(VecMag, HRVparams, recording);
-        sqi = [tSQI', SQIvalue'];
+        [~, rr, jqrs_ann, ~ , ~] = ConvertRawDataToRRIntervals(VecMag, HRVparams, recording);
+        %sqi = [tSQI', SQIvalue'];
 
         % Find fiducial points using ECGKit
         ECG_header.nsig = 1; ECG_header.freq = Fs; ECG_header.nsamp = length(VecMag);
@@ -50,14 +54,9 @@ function features = get_12ECG_features(data, header_data)
         [Fid_pts,~,~] = wavedet_3D_ECGKit(VecMag', jqrs_ann', ECG_header, wavedet_config);
 
     catch
-        ECG_PeriodsAndPeaks.ST_elevation = NaN;
-        ECG_PeriodsAndPeaks.ECG_Periods = NaN;
-        ECG_PeriodsAndPeaks.ST_data = NaN;
-		features_GEH = NaN(1,24);
-        features_GEH(1)=age;
-        features_GEH(2)=sex;      
-        AF_param = zeros(1,14);
-	end
+        
+    end
+
 
     
     if (exist('rr','var'))
@@ -67,14 +66,30 @@ function features = get_12ECG_features(data, header_data)
     end
 
     if (exist('Fid_pts','var'))
-        f_st = parfeval(p,@extract_ECG_Periods,1,ECG12filt,Fid_pts,Fs);
-        f_GEH = parfeval(p,@get_GEH_feature,1,XYZLeads,Fid_pts,Fs, age, sex);
+        f_periods = parfeval(p,@extract_ECG_Periods,1,Fid_pts,Fs);
+        f_Elevations = parfeval(p,@extract_ECG_ST_elevation_parameters,1,ECG12filt,Fid_pts);
+        f_GEH = parfeval(p,@get_GEH_feature,1,XYZLeads,Fid_pts,Fs);
+        f_QRS_areas = parfeval(p,@compute_QRS_area,1,ECG12filt,Fid_pts,Fs);
     end
+    
     try 
-        PVC = get_PVC_feature (ECG12filt(7,:),HRVparams);
+       PVC = get_PVC_feature (ECG12filt(7,:),HRVparams);
 
-        if (exist('f_st','var'))   
-           ECG_PeriodsAndPeaks = fetchOutputs(f_st);
+    catch
+       PVC = -1; 
+    end
+    try
+        if (exist('f_QRS_areas','var'))   
+           QRS_areas_vector = fetchOutputs(f_QRS_areas);
+        end
+        if (exist('f_periods','var'))   
+           ECG_Periods = fetchOutputs(f_periods);
+        end
+        if (exist('f_Elevations','var'))   
+
+           result = fetchOutputs(f_Elevations);
+           ECG_ST_Elevations = result.ST_elevation;
+           R_elevation = result.R_elevation;
         end
         if (exist('f_GEH','var')) 
             features_GEH = fetchOutputs(f_GEH);
@@ -83,15 +98,10 @@ function features = get_12ECG_features(data, header_data)
             AF_param = fetchOutputs(f_AF);
         end
     catch
-       PVC = -1; 
     end
-    
-    result.GEH = features_GEH;
-    result.AF_param = AF_param;
-    result.PVC = PVC;
-    result.resultVector = vectorization (ECG_PeriodsAndPeaks.ST_data,ECG_PeriodsAndPeaks.ECG_Periods);
-
-    features = [features_GEH AF_param PVC  result.resultVector];
+    ECG_Periods_vector = struct2vector (ECG_Periods);
+    AF_important = [AF_param(2:7) AF_param(12) AF_param(14)];
+    features = [age sex features_GEH AF_important PVC ECG_Periods_vector ECG_ST_Elevations QRS_areas_vector R_elevation];
             
 end
 
@@ -110,17 +120,17 @@ function PVC = get_PVC_feature (ECG,HRVparams)
     end 
 end
 
-function features = get_GEH_feature (XYZLeads,Fid_pts,Fs, age, sex)
+function features = get_GEH_feature (XYZLeads,Fid_pts,Fs)
+    features = NaN(1,22);
     try
+        
         [XYZ_Median,Fid_pts_Median] = Time_coherent_code_github(XYZLeads,Fid_pts,Fs);
         GEH_features = GEH_analysis_git(XYZ_Median,Fid_pts_Median,Fs);
-        features(1)=age;
-        features(2)=sex;
-        features(3:24)=GEH_features;
+
+        features=GEH_features;
+
     catch
-        features = NaN(1,24);
-        features(1)=age;
-        features(2)=sex;
+
     end
 end
 
@@ -141,45 +151,83 @@ function AF_param = get_AF_Parameters(rr,Fs)
     end
 end
 
-function result = extract_ECG_Periods (ECG,Fid_pts,Fs)
-    ECG_leads = 1:12;
-    ST_elevation = zeros(length(ECG_leads),1);
-    R_sign = zeros(length(ECG_leads),1);
-    ST_data={};
-    
-    
-    QRSoff = Fid_pts.QRSoff;
-    QRSon = Fid_pts.QRSon;
-    Toff = Fid_pts.Toff;
+function ECG_Periods = extract_ECG_Periods (Fid_pts,Fs)
+    Q = Fid_pts.Q;
     R = Fid_pts.R;
+    S = Fid_pts.R;
     P = Fid_pts.P;
+    T = Fid_pts.T;
+    %If possible, compute periods (values in seconds).
+    ECG_Periods.PR = nan (length (R),1);
+    ECG_Periods.QS = nan (length (R),1);
+    ECG_Periods.QR = nan (length (R),1);
+    ECG_Periods.PT = nan (length (R),1);
+    ECG_Periods.TP = nan (length (R),1);
+    ECG_Periods.RAPR = nan (length (R)-1,1);
     
-    %If possible, compute period (values are in seconds).
-    ECG_Periods.PR = zeros (length (R),1);
-    ECG_Periods.QS = zeros (length (R),1);
-    ECG_Periods.QR = zeros (length (R),1);
     for i=1:length (R)
-        if (isnan(R(i))||isnan(P(i)))
-            ECG_Periods.PR(i) = nan;
-        else
+        if ~(isnan(R(i))||isnan(P(i)))
             ECG_Periods.PR(i) = (R(i) - P(i))*(1/Fs);   
         end 
         
-        if (isnan(QRSoff(i))||isnan(QRSon(i)))
-            ECG_Periods.QS(i) = nan;
-        else
-            ECG_Periods.QS(i) = (QRSoff(i) - QRSon(i))*(1/Fs);   
+        if ~(isnan(S(i))||isnan(Q(i)))
+            ECG_Periods.QS(i) = (S(i) - Q(i))*(1/Fs);   
         end
         
-        if (isnan(R(i))||isnan(QRSon(i)))
-            ECG_Periods.QR(i) = nan;
-        else
-            ECG_Periods.QR(i) = (R(i) - QRSon(i))*(1/Fs);   
+        if ~(isnan(R(i))||isnan(Q(i)))
+            ECG_Periods.QR(i) = (R(i) - Q(i))*(1/Fs);   
         end
+        
+        if ~(isnan(P(i))||isnan(T(i)))
+            ECG_Periods.PT(i) = (T(i) - P(i))*(1/Fs);   
+        end
+        
+        if (i <length(R))%TP and RAPR use P_time from next cardiac cycle 
+            if ~(isnan(P(i+1))||isnan(T(i)))
+                ECG_Periods.TP(i) = (P(i+1) - T(i))*(1/Fs);   
+            end
+            if ~(isnan(R(i))||isnan(R(i+1))||isnan(ECG_Periods.PR(i)))
+                ECG_Periods.RAPR (i)= ECG_Periods.PR(i) / ((R(i+1)-R(1))*(1/Fs));
+            end
+        end        
     end
+end
+
+function QRS_areas_vector = compute_QRS_area (ECG,Fid_pts,FS)
+    n = 12;  
+    QRS_areas_vector = nan(1,n*4);
+
+    QRSoff = Fid_pts.QRSoff;
+    QRSon = Fid_pts.QRSon;
+    for k=1:n
+        QRS_areas_in_lead = nan (1,length(QRSoff));
+        for i = 1:length(QRSoff)
+            if (~(isnan(QRSon(i))||isnan(QRSoff(i))))
+                QRS_areas_in_lead(i) = sum (ECG(k,QRSon(i):QRSoff(i))*(1/FS));
+            end
+        end
+        p = (k-1)*4+1;
+        QRS_areas_vector (p) =  min (QRS_areas_in_lead);
+        QRS_areas_vector (p+1) =  max (QRS_areas_in_lead);
+        QRS_areas_vector (p+2) =  median (rmmissing(QRS_areas_in_lead));
+        QRS_areas_vector (p+3) =  std (rmmissing(QRS_areas_in_lead));
+    end
+    
+end
+
+function result = extract_ECG_ST_elevation_parameters (ECG,Fid_pts)
+    ECG_leads = 1:12;
+    R_elevation = nan(1,length(ECG_leads));
+    ST_elevation = zeros(1,length(ECG_leads));
+
+    Toff = Fid_pts.Toff;    
+    QRSoff = Fid_pts.QRSoff;
+    QRSon = Fid_pts.QRSon;
+    R = Fid_pts.R;
     
     for k=1:length(ECG_leads)
         nr = ECG_leads(k);
+        
         d = (diff(ECG(nr,:)));
         QRSend =QRSoff;  
         QRSstart = QRSon;
@@ -257,174 +305,44 @@ function result = extract_ECG_Periods (ECG,Fid_pts,Fs)
             end
         end
 
-        R_peak_value = mean(ECG(nr,rmmissing(R)))-mean(rmmissing(ECG_IzoLine));
-        if (R_peak_value>0)
-            R_sign (k) = 1;
-        else
-            R_sign (k) = -1;
-        end
+
 
         pom = J_Value-ECG_IzoLine;
         ST_elevation(k) = median(rmmissing(pom));
-        
-        R_peak = zeros (1,length(R));
-        for b=1:length(R)
-            if isnan(R(b))
-                R_peak(b) = nan;
-            else
-                R_peak(b) = ECG(nr,R(b));
-            end
+        if (~(isnan(R)))
+            R_values = ECG(k,R);
+            R_elevations = R_values-ECG_IzoLine;
+            R_elevation(k) = median (rmmissing(R_elevations));
         end
-        element = struct('ST_elevations',pom, 'J_Value',J_Value, 'ECG_IzoLine',ECG_IzoLine, 'R_peak',R_peak);
- 
-        
-        ST_data{k} = element;
     end
-       
-    result.ST_elevation = ST_elevation.*R_sign;
-    result.ST_data = ST_data;
-    result.ECG_Periods = ECG_Periods;
+    result.ST_elevation = ST_elevation;
+    result.R_elevation = R_elevation;
 end
 
-function resultVector = vectorization (ECG_Values,ECG_Periods)
-    resultVector = zeros(1,108);
+function resultVector = struct2vector (S)
+    fields = fieldnames(S);
+    resultVector =  nan(1,length(fields)*4);
+
+
     p = 1;
-    if (length(ECG_Values)==12)
-        for n=1:12
-              ST_elevations = rmmissing(ECG_Values{n}.ST_elevations); 
-              ECG_IzoLine = rmmissing(ECG_Values{n}.ECG_IzoLine); 
-              if (~isempty(ST_elevations))
-                  resultVector (p) =  min (ST_elevations);
-                  p = p + 1;
-                  resultVector (p) =  max (ST_elevations);
-                  p = p + 1;
-                  resultVector (p) =  median (ST_elevations);
-                  p = p + 1;
-                  resultVector (p) =  std (ST_elevations);
-                   p = p + 1;
-              else
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-              end
-
-              if (~isempty(ECG_IzoLine))
-                  resultVector (p) =  min (ECG_IzoLine);
-                  p = p + 1;
-                  resultVector (p) =  max (ECG_IzoLine);
-                  p = p + 1;
-                  resultVector (p) =  median (ECG_IzoLine);
-                  p = p + 1;
-                  resultVector (p) =  std (ECG_IzoLine);
-                  p = p + 1;
-              else
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-                   resultVector (p) = nan;
-                   p = p + 1;
-              end
-        end
-    else
-       for i=1:96
-           resultVector (p) = nan;
-           p = p + 1;
-       end
-    end
-      if (isstruct(ECG_Periods))
-          PR = rmmissing(ECG_Periods.PR);
-          if (~isempty(PR))
-              resultVector (p) =  min (PR);
+    for i=1:length(fields)
+      value = S.(fields{i});
+      if (~isempty(value))
+          try
+              resultVector (p) =  min (value);
               p = p + 1;
-              resultVector (p) =  max (PR);
+              resultVector (p) =  max (value);
               p = p + 1;
-              resultVector (p) =  median (PR);
+              resultVector (p) =  median (rmmissing(value));
               p = p + 1;
-              resultVector (p) =  std (PR);
+              resultVector (p) =  std (rmmissing(value));
               p = p + 1;
-          else
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-          end
-
-          QS = rmmissing(ECG_Periods.QS);
-          if (~isempty(QS))
-              resultVector (p) =  min (QS);
-              p = p + 1;
-              resultVector (p) =  max (QS);
-              p = p + 1;
-              resultVector (p) =  median (QS);
-              p = p + 1;
-              resultVector (p) =  std (QS);
-              p = p + 1;
-          else
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-          end
-          QR = rmmissing(ECG_Periods.QR);
-          if (~isempty(QR))
-              resultVector (p) =  min (QR);
-              p = p + 1;
-              resultVector (p) =  max (QR);
-              p = p + 1;
-              resultVector (p) =  median (QR);
-              p = p + 1;
-              resultVector (p) =  std (QR);
-              p = p + 1;
-          else
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
-               resultVector (p) = nan;
-               p = p + 1;
+          catch
+              p = (i+1)*4+1;
           end
       else
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;
-           p = p + 1;
-           resultVector (p) = nan;            
+          p = p + 4;
       end
+    end
+ 
 end
-
