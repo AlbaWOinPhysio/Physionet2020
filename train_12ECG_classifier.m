@@ -55,14 +55,14 @@ for i = 1:num_files
         features(nr,:)=tmp_features;
         nr = nr + 1;
     else
-        disp("Data are not valid, not supported or multiple class")
+        disp("Sample are not valid, not supported or multiple class")
     end
 end
 %remove classes with no samples
 %classes = supportedClasses (any(labels,1));
 %labels = labels(:,any(labels,1));
 
-%save ('data.mat', 'features', 'labels','classes');
+save ('data.mat', 'features', 'labels','classes');
 
 disp('Training model..')
 names = cell (length (labels),1); 

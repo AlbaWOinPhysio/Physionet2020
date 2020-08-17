@@ -3,18 +3,18 @@ function features = get_12ECG_features(data, header_data)
        % addfunction path needed
         addpath(genpath('Tools/'))
         load('HRVparams_12ECG','HRVparams')
-
+  p = gcp();
 	% read number of leads, sample frequency and gain from the header.	
 
 	[recording,Total_time,num_leads,Fs,gain,age,sex]=extract_data_from_header(header_data);
 
 	HRVparams.Fs=Fs;
-        HRVparams.PeakDetect.windows = floor(Total_time-1);
-        HRVparams.windowlength = floor(Total_time);
-        HRVparams.PVC.qrsth = 0.1;
+    HRVparams.PeakDetect.windows = floor(Total_time-1);
+    HRVparams.windowlength = floor(Total_time);
+    HRVparams.PVC.qrsth = 0.1;
 	%parraler computing
-    p = gcp();
-
+  
+    %prelocate
     ECG_ST_Elevations = NaN(1,12);
     ECG_Periods.PR = NaN;
     ECG_Periods.QS = NaN;
@@ -22,20 +22,24 @@ function features = get_12ECG_features(data, header_data)
     ECG_Periods.PT = NaN;
     ECG_Periods.TP = NaN;
     ECG_Periods.RAPR = NaN;
-    features_GEH = NaN(1,22);
-    features_GEH(1)=age;
-    features_GEH(2)=sex;      
+    PVC = -1;
+    features_GEH = NaN(1,22);      
     AF_param = NaN(1,14);
     R_elevation = NaN(1,12);
-    QRS_areas_vector = NaN(1,48);
+    QRS_areas_vector = NaN(1,84);
+    
     parfor i =1:num_leads
             Lead12wGain(i,:) = data(i,:)* gain(i);
     end
-
+    
+    %create high pass filter
+    freq = 1;
+    [b, a] = butter(6, freq / (Fs * 2), 'high');
 
     % median filter to remove bw
     parfor i=1:num_leads
-            ECG12filt(i,:) = medianfilter(Lead12wGain(i,:)', Fs);
+        ECG_filt = filter(b,a,Lead12wGain(i,:)');
+        ECG12filt(i,:) = medianfilter(ECG_filt, Fs);
     end
     
     try
@@ -57,7 +61,8 @@ function features = get_12ECG_features(data, header_data)
         
     end
 
-
+    f_pvc = parfeval(p,@get_PVC_feature,1,ECG12filt(7,:),HRVparams);
+    
     
     if (exist('rr','var'))
         if (~isempty(rr))
@@ -66,37 +71,27 @@ function features = get_12ECG_features(data, header_data)
     end
 
     if (exist('Fid_pts','var'))
-        f_periods = parfeval(p,@extract_ECG_Periods,1,Fid_pts,Fs);
-        f_Elevations = parfeval(p,@extract_ECG_ST_elevation_parameters,1,ECG12filt,Fid_pts);
         f_GEH = parfeval(p,@get_GEH_feature,1,XYZLeads,Fid_pts,Fs);
-        f_QRS_areas = parfeval(p,@compute_QRS_area,1,ECG12filt,Fid_pts,Fs);
-    end
-    
-    try 
-       PVC = get_PVC_feature (ECG12filt(7,:),HRVparams);
+        
 
-    catch
-       PVC = -1; 
+        ECG_Periods = extract_ECG_Periods (Fid_pts,Fs);
+        result = extract_ECG_ST_elevation_parameters (ECG12filt,Fid_pts);
+        ECG_ST_Elevations = result.ST_elevation;
+        R_elevation = result.R_elevation;
+        QRS_areas_vector = compute_QRS_area (ECG12filt,Fid_pts,Fs);
     end
+
     try
-        if (exist('f_QRS_areas','var'))   
-           QRS_areas_vector = fetchOutputs(f_QRS_areas);
-        end
-        if (exist('f_periods','var'))   
-           ECG_Periods = fetchOutputs(f_periods);
-        end
-        if (exist('f_Elevations','var'))   
-
-           result = fetchOutputs(f_Elevations);
-           ECG_ST_Elevations = result.ST_elevation;
-           R_elevation = result.R_elevation;
-        end
-        if (exist('f_GEH','var')) 
-            features_GEH = fetchOutputs(f_GEH);
+        if (exist('f_pvc','var'))  
+            PVC=fetchOutputs(f_pvc);
         end
         if (exist('f_AF','var')) 
             AF_param = fetchOutputs(f_AF);
         end
+        if (exist('f_GEH','var'))
+            features_GEH = fetchOutputs(f_GEH);
+        end
+        
     catch
     end
     ECG_Periods_vector = struct2vector (ECG_Periods);
@@ -195,7 +190,8 @@ end
 
 function QRS_areas_vector = compute_QRS_area (ECG,Fid_pts,FS)
     n = 12;  
-    QRS_areas_vector = nan(1,n*4);
+    retNR = 7;
+    QRS_areas_vector = nan(1,n*retNR);
 
     QRSoff = Fid_pts.QRSoff;
     QRSon = Fid_pts.QRSon;
@@ -206,11 +202,16 @@ function QRS_areas_vector = compute_QRS_area (ECG,Fid_pts,FS)
                 QRS_areas_in_lead(i) = sum (ECG(k,QRSon(i):QRSoff(i))*(1/FS));
             end
         end
-        p = (k-1)*4+1;
+        p = (k-1)*retNR+1;
         QRS_areas_vector (p) =  min (QRS_areas_in_lead);
         QRS_areas_vector (p+1) =  max (QRS_areas_in_lead);
         QRS_areas_vector (p+2) =  median (rmmissing(QRS_areas_in_lead));
         QRS_areas_vector (p+3) =  std (rmmissing(QRS_areas_in_lead));
+        
+        [minDiff, maxDiff, meanDiff] = interbeatDifference (QRS_areas_in_lead);
+        QRS_areas_vector (p+4) = minDiff;
+        QRS_areas_vector (p+5) = maxDiff;
+        QRS_areas_vector (p+6) = meanDiff;
     end
     
 end
@@ -304,9 +305,7 @@ function result = extract_ECG_ST_elevation_parameters (ECG,Fid_pts)
                 ECG_IzoLine (end+1) = nan;
             end
         end
-
-
-
+        
         pom = J_Value-ECG_IzoLine;
         ST_elevation(k) = median(rmmissing(pom));
         if (~(isnan(R)))
@@ -319,10 +318,26 @@ function result = extract_ECG_ST_elevation_parameters (ECG,Fid_pts)
     result.R_elevation = R_elevation;
 end
 
+function [minDiff, maxDiff, meanDiff] = interbeatDifference (parameter)
+    minDiff = nan;
+    maxDiff = nan;
+    meanDiff = nan; 
+    if (length(rmmissing(parameter))>1)
+        difference = diff(parameter);
+        if (rmmissing(difference)>0)
+            meanParameter = mean(rmmissing(parameter));
+            interDiff = (difference ./ meanParameter)*100;
+            minDiff = min (rmmissing(interDiff));
+            maxDiff = max (rmmissing(interDiff));
+            meanDiff = mean (rmmissing(interDiff));
+        end
+    end
+end
+
 function resultVector = struct2vector (S)
     fields = fieldnames(S);
-    resultVector =  nan(1,length(fields)*4);
-
+    retNR = 7;
+    resultVector =  nan(1,length(fields)*retNR);
 
     p = 1;
     for i=1:length(fields)
@@ -337,11 +352,18 @@ function resultVector = struct2vector (S)
               p = p + 1;
               resultVector (p) =  std (rmmissing(value));
               p = p + 1;
+              [minDiff, maxDiff, meanDiff] = interbeatDifference (value);
+              resultVector (p) =  minDiff;
+              p = p + 1;
+              resultVector (p) =  maxDiff;
+              p = p + 1;
+              resultVector (p) =  meanDiff;
+              p = p + 1;
           catch
-              p = (i+1)*4+1;
+              p = (i+1)*retNR;
           end
       else
-          p = p + 4;
+          p = p + retNR;
       end
     end
  
