@@ -5,16 +5,7 @@ function features = get_12ECG_features(data, header_data)
         load('HRVparams_12ECG','HRVparams')
   p = gcp();
 	% read number of leads, sample frequency and gain from the header.	
-
-	[recording,Total_time,num_leads,Fs,gain,age,sex]=extract_data_from_header(header_data);
-
-	HRVparams.Fs=Fs;
-    HRVparams.PeakDetect.windows = floor(Total_time-1);
-    HRVparams.windowlength = floor(Total_time);
-    HRVparams.PVC.qrsth = 0.1;
-	%parraler computing
-  
-    %prelocate
+%prelocate
     ECG_ST_Elevations = NaN(1,12);
     ECG_Periods.PR = NaN;
     ECG_Periods.QS = NaN;
@@ -28,6 +19,15 @@ function features = get_12ECG_features(data, header_data)
     R_elevation = NaN(1,12);
     QRS_areas_vector = NaN(1,84);
     
+	[recording,Total_time,num_leads,Fs,gain,age,sex]=extract_data_from_header(header_data);
+
+	HRVparams.Fs=Fs;
+    HRVparams.PeakDetect.windows = floor(Total_time-1);
+    HRVparams.windowlength = floor(Total_time);
+    HRVparams.PVC.qrsth = 0.1;
+	%parraler computing
+  
+    try
     parfor i =1:num_leads
             Lead12wGain(i,:) = data(i,:)* gain(i);
     end
@@ -42,7 +42,9 @@ function features = get_12ECG_features(data, header_data)
         ECG12filt(i,:) = medianfilter(ECG_filt, Fs);
     end
     
-    try
+        f_pvc = parfeval(p,@get_PVC_feature,1,ECG12filt(7,:),HRVparams);
+    
+    
         % convert 12Leads to XYZ leads using Kors transformation
         XYZLeads = Kors_git(ECG12filt);
         VecMag = vecnorm(XYZLeads');
@@ -61,7 +63,7 @@ function features = get_12ECG_features(data, header_data)
         
     end
 
-    f_pvc = parfeval(p,@get_PVC_feature,1,ECG12filt(7,:),HRVparams);
+    
     
     
     if (exist('rr','var'))
@@ -94,6 +96,7 @@ function features = get_12ECG_features(data, header_data)
         
     catch
     end
+    
     ECG_Periods_vector = struct2vector (ECG_Periods);
     AF_important = [AF_param(2:7) AF_param(12) AF_param(14)];
     features = [age sex features_GEH AF_important PVC ECG_Periods_vector ECG_ST_Elevations QRS_areas_vector R_elevation];
@@ -324,9 +327,13 @@ function [minDiff, maxDiff, meanDiff] = interbeatDifference (parameter)
     meanDiff = nan; 
     if (length(rmmissing(parameter))>1)
         difference = diff(parameter);
-        if (rmmissing(difference)>0)
+        if (~isempty(rmmissing(difference)))
             meanParameter = mean(rmmissing(parameter));
-            interDiff = (difference ./ meanParameter)*100;
+            if (meanParameter~= 0)
+                interDiff = (difference ./ meanParameter)*100;
+            else
+                interDiff = difference;
+            end
             minDiff = min (rmmissing(interDiff));
             maxDiff = max (rmmissing(interDiff));
             meanDiff = mean (rmmissing(interDiff));

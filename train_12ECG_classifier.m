@@ -38,12 +38,14 @@ for i = 1:num_files
         if startsWith(hea_data{j},'#Dx')
             tmp = strsplit(hea_data{j},': ');
             tmp_c = strsplit(tmp{2},',');
-            if (length(tmp_c)==1)
-                if any(strcmp(supportedClasses,tmp_c{1}))
+            for h = 1:length(tmp_c)
+                classCount = (strcmp(supportedClasses,tmp_c{h}));
+                if (sum(classCount) == 1)    
                     idx=strcmp(classes,tmp_c{1});
                     if sum(idx)==1
                         labels(nr,idx)=1;
                         validObservation = true;
+                        break
                     end
                 end
             end
@@ -62,11 +64,12 @@ end
 %classes = supportedClasses (any(labels,1));
 %labels = labels(:,any(labels,1));
 
-save ('data.mat', 'features', 'labels','classes');
+save ('ALLdataFeatures.mat', 'features', 'labels','classes');
 
 disp('Training model..')
 names = cell (length (labels),1); 
-for j = 1:length (labels)
+x = size (labels);
+for j = 1:x(1)
     names(j,1) = classes (logical(labels (j,:)));
 end
 
