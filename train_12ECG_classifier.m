@@ -38,16 +38,22 @@ for i = 1:num_files
         if startsWith(hea_data{j},'#Dx')
             tmp = strsplit(hea_data{j},': ');
             tmp_c = strsplit(tmp{2},',');
+            suportedClassCount = 0;
             for h = 1:length(tmp_c)
-                classCount = (strcmp(supportedClasses,tmp_c{h}));
-                if (sum(classCount) == 1)    
-                    idx=strcmp(classes,tmp_c{1});
+                suportedClassCount = suportedClassCount+sum((strcmp(supportedClasses,tmp_c{h})));
+            end
+            if (suportedClassCount == 1)
+            for h = 1:length(tmp_c)
+                suported = (strcmp(supportedClasses,tmp_c{h}));
+                if (sum(suported) == 1)    
+                    idx=strcmp(classes,tmp_c{h});
                     if sum(idx)==1
                         labels(nr,idx)=1;
                         validObservation = true;
                         break
                     end
                 end
+            end
             end
             break
         end
@@ -63,17 +69,19 @@ end
 %remove classes with no samples
 %classes = supportedClasses (any(labels,1));
 %labels = labels(:,any(labels,1));
+%save ('labls.mat','labels','classes');
+%save ('mindataFeatures.mat', 'features', 'labels','classes');
 
-save ('ALLdataFeatures.mat', 'features', 'labels','classes');
-
-disp('Training model..')
+disp('Training Tree Bagger model..')
 names = cell (length (labels),1); 
 x = size (labels);
 for j = 1:x(1)
     names(j,1) = classes (logical(labels (j,:)));
 end
 
-model = TreeBagger(100,features,names);
+model.TreeBagger = TreeBagger(100,features,names);
+model.forest = BuildForestfromSelectedFeatures (features, labels, classes);
+
 save_12_ECG_model(model,output_directory,classes);
 end
 

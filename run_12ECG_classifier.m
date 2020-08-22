@@ -2,6 +2,8 @@ function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_
 
 
 	model=loaded_model.model;
+
+
 	classes=loaded_model.classes;
 
     num_classes = length(classes);
@@ -13,13 +15,42 @@ function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_
     features = get_12ECG_features(data,header_data);
 
     
-    result =predict(model,features);	
-    idx=strcmp(classes,result);
+    [~,values] =predict(model.TreeBagger,features);	
+    
+    score = addResultToScore(score,classes,values,model.TreeBagger.ClassNames);
+    
+    result = predictForest (features, model.forest);
+    score = addResultToScore(score,classes,result,model.forest.classNames);
+    score = score./2;
+    [~,I]  = max(score);
+  %  idx=strcmp(classes,Label);
     
     
-    score(idx) = 1;
-    label(idx) = 1;
+    score(I) = 1;
+    label(I) = 1;
 end
 
+function newScore = addResultToScore(scores,classes,results,modelClassesNames)
+    newScore =  scores;
+    for i=1:length(modelClassesNames)
+        idx=strcmp(classes,modelClassesNames{i});
+        
+        newScore(idx)=scores(i)+results(i);
+    end
+end
 
+function result = predictForest (features, Forest)
+    Models=Forest.Models;
+    selectedFeatures = Forest.selectedFeatures;
+    result = zeros (length(Models),1);
+
+    for m=1:length(Models)
+        if (~isnumeric(Models{m}))
+            [LABEL,POSTERIOR,~,~] = predict (Models{m},features(selectedFeatures(m,:)));
+            if (LABEL~= 0)
+                result(m) = POSTERIOR(2);
+            end
+        end
+    end
+end
 
