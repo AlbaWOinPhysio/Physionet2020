@@ -6,7 +6,7 @@ for i=1:sl(2)
     if (any(classObservation))
         fromClassFeatures= features(classObservation,:);
         notFromClassFeatures= features(~classObservation,:);
-try
+try%For each class chose significant features
         [~,p,~,~] = ttest2(rmmissing(fromClassFeatures),rmmissing(notFromClassFeatures),'Vartype','unequal');
         selectedFeatures(nr,:) = (p<0.05);
 
@@ -35,26 +35,34 @@ for i=1:sf(1)
         
         fromClassFeatures= features(classObservation,:);
         sfCF = size(fromClassFeatures);
-        notFromClassFeatures= features(~classObservation,:);
-        sNfCF = size(notFromClassFeatures);
-        
-        n = round(sNfCF(1)/sfCF(1));
-        if (n>2)
-            n=2;
-        end
-        c=randperm(sNfCF(1),sfCF(1)*n);
 
-        X = [fromClassFeatures(:,selectedFeatures(i,:)); notFromClassFeatures(c,selectedFeatures(i,:))];
-        y = [];
-        y(1:sfCF(1),1) = string(classes(classNumber(i)));
-        y((sfCF(1)+1):(sfCF(1)*(n+1)),1) = string(0);
-     
-        Models{i} = fitctree(X,y);
+       notFromClassFeatures= features(~classObservation,:);
+       sNfCF = size(notFromClassFeatures);
+        if ((sfCF(1)>0)&&(sNfCF(1)>0))
+            %select observation for trainning, balance the proportion
+            n = round(sNfCF(1)/sfCF(1));
+            if (n>3)
+                n=3;
+            end
+            K=sfCF(1)*n;
+            if (K>sNfCF(1))
+                K= sNfCF(1);
+            end
+            c=randperm(sNfCF(1),K);
+
+            X = [fromClassFeatures(:,selectedFeatures(i,:)); notFromClassFeatures(c,selectedFeatures(i,:))];
+            y = [];
+            y(1:sfCF(1),1) = string(classes(classNumber(i)));
+            y((sfCF(1)+1):(sfCF(1)*(n+1)),1) = string(0);
+
+            Models{i} = fitctree(X,y);
+        end
 %         CVSVMModel = crossval(Models{i});        
 %         classLoss = kfoldLoss(CVSVMModel);
 %         disp (['class Loss: ',  num2str(classLoss)])
     end
 end
+%Return result
 forrest.Models = Models;
 forrest.selectedFeatures = selectedFeatures;
 forrest.classNames = classNames;

@@ -47,7 +47,7 @@ function result = predictForest (features, Forest)
     for m=1:length(Models)
         if (~isnumeric(Models{m}))
             [LABEL,POSTERIOR,~,~] = predict (Models{m},features(selectedFeatures(m,:)));
-            if (LABEL~= 0)
+            if ((LABEL~= 0)&&(length(POSTERIOR)==2))
                 result(m) = POSTERIOR(2);
             end
         end

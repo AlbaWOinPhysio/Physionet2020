@@ -1,4 +1,4 @@
-On the Alba Team's solution to the PhysioNet / CinC Challenge 2020
+On the Alba Team's answer to the PhysioNet / CinC Challenge 2020
     Copyright (C) 2020  Marek Zylinski
 
     This program is free software: you can redistribute it and/or modify
