@@ -70,7 +70,7 @@ end
 %classes = supportedClasses (any(labels,1));
 %labels = labels(:,any(labels,1));
 %save ('labls.mat','labels','classes');
-%save ('mindataFeatures.mat', 'features', 'labels','classes');
+save ('trainFeatures.mat', 'features', 'labels','classes');
 
 disp('Training Tree Bagger model..')
 names = cell (length (labels),1); 

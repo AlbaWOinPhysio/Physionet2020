@@ -50,13 +50,36 @@ for i=1:sf(1)
                 K= sNfCF(1);
             end
             c=randperm(sNfCF(1),K);
-
+            %search for best clasifier
             X = [fromClassFeatures(:,selectedFeatures(i,:)); notFromClassFeatures(c,selectedFeatures(i,:))];
             y = [];
             y(1:sfCF(1),1) = string(classes(classNumber(i)));
             y((sfCF(1)+1):K+sfCF(1),1) = string(0);
-
-            Models{i} = fitctree(X,y);
+            %divide data in trainning and test dataset
+            sX = size(X);
+            trainningPart = round (sX(1)*0.8);
+            trainX = X(1:trainningPart,:);
+            testX = X(trainningPart:sX(1),:);
+            
+            trainY = y(1:trainningPart);
+            testY = y(trainningPart:sX(1),:);
+            
+            %train and validiate classifiers
+            testModels{1} = fitctree(trainX,trainY);
+            yM1 = predict (testModels{1},testX);
+            score(1) = sum(yM1==testY);
+            
+            testModels{2} = fitcnb(trainX,trainY);
+            yM2 = predict (testModels{2},testX);
+            score(2) = sum(yM2==testY);
+            
+            testModels{3} = fitcsvm(trainX,trainY);
+            yM3 = predict (testModels{3},testX);
+            score(3) = sum(yM3==testY);
+            
+            [~,Idx] = max(score)
+            %get the best 
+            Models{i} = testModels{Idx};
         end
 %         CVSVMModel = crossval(Models{i});        
 %         classLoss = kfoldLoss(CVSVMModel);
@@ -69,5 +92,5 @@ end
 %Return result
 forrest.Models = Models;
 forrest.selectedFeatures = selectedFeatures;
-forrest.classNames = classNames;
+forrest.ClassNames = classNames;
 
