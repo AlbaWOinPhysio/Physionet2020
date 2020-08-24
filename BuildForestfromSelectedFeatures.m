@@ -28,6 +28,7 @@ classNames(sf(1),1) = "";
 Models= cell(sf(1),1);
 for i=1:sf(1)
      disp(['    ', num2str(i), '/', num2str(sf(1)), '...']);
+    try 
     classNames(i) =  string(classes{classNumber(i)});
     classObservation = logical(labels(:,classNumber(i)));
 
@@ -38,11 +39,11 @@ for i=1:sf(1)
 
        notFromClassFeatures= features(~classObservation,:);
        sNfCF = size(notFromClassFeatures);
-        if ((sfCF(1)>0)&&(sNfCF(1)>0))
+       if ((sfCF(1)>0)&&(sNfCF(1)>0))
             %select observation for trainning, balance the proportion
             n = round(sNfCF(1)/sfCF(1));
-            if (n>3)
-                n=3;
+            if (n>2)
+                n=2;
             end
             K=sfCF(1)*n;
             if (K>sNfCF(1))
@@ -53,13 +54,16 @@ for i=1:sf(1)
             X = [fromClassFeatures(:,selectedFeatures(i,:)); notFromClassFeatures(c,selectedFeatures(i,:))];
             y = [];
             y(1:sfCF(1),1) = string(classes(classNumber(i)));
-            y((sfCF(1)+1):(sfCF(1)*(n+1)),1) = string(0);
+            y((sfCF(1)+1):K+sfCF(1),1) = string(0);
 
             Models{i} = fitctree(X,y);
         end
 %         CVSVMModel = crossval(Models{i});        
 %         classLoss = kfoldLoss(CVSVMModel);
 %         disp (['class Loss: ',  num2str(classLoss)])
+    end
+    catch
+        
     end
 end
 %Return result
