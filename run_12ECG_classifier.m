@@ -1,8 +1,5 @@
 function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_model)
-
-
 	model=loaded_model.model;
-
 
 	classes=loaded_model.classes;
 
@@ -13,7 +10,6 @@ function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_
     
     % Use your classifier here to obtain a label and score for each class.
     features = get_12ECG_features(data,header_data);
-
     
     [~,values] =predict(model.TreeBagger,features);	
     
@@ -23,9 +19,7 @@ function [score, label,classes] = run_12ECG_classifier(data,header_data, loaded_
     score = addResultToScore(score,classes,result,model.forest.classNames);
     score = score./2;
     [~,I]  = max(score);
-  %  idx=strcmp(classes,Label);
-    
-    
+  
     score(I) = 1;
     label(I) = 1;
 end
@@ -35,7 +29,7 @@ function newScore = addResultToScore(scores,classes,results,modelClassesNames)
     for i=1:length(modelClassesNames)
         idx=strcmp(classes,modelClassesNames{i});
         
-        newScore(idx)=scores(i)+results(i);
+        newScore(idx)=scores(idx)+results(i);
     end
 end
 
