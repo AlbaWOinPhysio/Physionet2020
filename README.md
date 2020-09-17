@@ -1,29 +1,29 @@
-#Objective#
+# Objective
 Here we describe our algorithm develop on The PhysioNet/Computing in Cardiology Challenge 2020 [1]. The goal of the 2020 Challenge is to identify the clinical diagnosis from 12-lead ECG recordings. The poster presents features that we used in classification. We also test features classification  power base on simple filter approach [2].
 
 
-##Algorithm ##
+## Algorithm
 The algorithm has 3 steps: ECG pre-processing features extraction and classification. Our solution is based on bootstrap-aggregated (bagged) decision trees.
 Signal preprocessing 
 First, we load data from a file, we used a similar approach as an example. From the header file, we utilize age and sex data as classification features and gain and sample frequency for signal calibration. After calibration, we perform signal filtration. We used a median filter to remove some noise and the Butterworth high pass filter at cut-off frequency = 1 Hz to remove isoline’s floating. 
 
-##Features ##
+## Features 
 In our algorithm we base on PhysioNet-Cardiovascular-Signal-Toolbox [3]. We used the following set of features: 
-Global Electrical Heterogeneity  (GEH features) – such as in example code, this group contains 22 parameters based on spatial ventricular gradient vector (SVG) such as SVG magnitude, SVG elevation, SVG azimuth, etc. 
-AF features – function AF_features.m in ECG_Analysis_Tools – this subset of features provide analysis of variability in RR interval and some sophisticated features such as coefficient if fuzzy measure entropy etc. [4]
-Ratio of PVC beat – we use modified PVC_detect.m function to detect premature ventricular contraction beats[3]. As feature we use ratio of PVC beats to all recorded ECG beats. 
+- Global Electrical Heterogeneity  (GEH features) – such as in example code, this group contains 22 parameters based on spatial ventricular gradient vector (SVG) such as SVG magnitude, SVG elevation, SVG azimuth, etc. 
+- AF features – function AF_features.m in ECG_Analysis_Tools – this subset of features provide analysis of variability in RR interval and some sophisticated features such as coefficient if fuzzy measure entropy etc. [4]
+- Ratio of PVC beat – we use modified PVC_detect.m function to detect premature ventricular contraction beats[3]. As feature we use ratio of PVC beats to all recorded ECG beats. 
 ECG periods –wavedet_3D_ECGKit function return time of characteristic points in ECG – based on it we write function that calculate some ECG periods, selected from literature [5, 6, 7]: 
--PR, QS, QR, PT, TP. Mentioned periods are shown on image (on the left). We also calculate RAPR which is a ratio of PR and RR.
--ECG morphology parameters : 
+- PR, QS, QR, PT, TP. Mentioned periods are shown on image (on the left). We also calculate RAPR which is a ratio of PR and RR.
+- ECG morphology parameters : 
 - QRS area [8] for each lead (as integrated ECG signal between Q and S points)  
--ST elevation as difference between value of ECG in J-point and isoline. J-point was defined as local extremum after QRSend points.
--R elevation as difference of value of ECG in R points and isoline. 
+- ST elevation as difference between value of ECG in J-point and isoline. J-point was defined as local extremum after QRSend points.
+- R elevation as difference of value of ECG in R points and isoline. 
 
-##Classification algorithm##
+## Classification algorithm
 We use build-in MATLAB, The Classification Learner app to choose the best classifier. Forests classification supported vector machine; k-nearest neighbor classifier was tested. As training data, we use all described features obtained for all samples in the challenge data set. Only valid recording, with one scored diagnose, is evaluated.Bootstrap-aggregated (bagged) decision trees shown the best accuracy and was chosen to perform the classification task.
 Our algorithm was scored several times in the official phase, the best challenge score obtained be our team is 0,308
 
-### Literature###
+### Literature
 1. Goldberger, A., Amaral, L., Glass, L., Hausdorff, J., Ivanov, P. C., Mark, R., ... & Stanley, H. E. (2000). PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals. Circulation [Online]. 101 (23), pp. e215–e220
 2. John G. Kohavi R. (1997) "Wrappers for feature subset selection", Artificial Intelligence, Vol.97, No.1-2, pp.272-324.
 3. Vest A, Da Poian G, Li Q, Liu C, Nemati S, Shah A, Clifford GD, "An Open Source Benchmarked Toolbox for Cardiovascular Waveform and Interval Analysis", Physiological measurement 39, no. 10 (2018): 105004. DOI:10.5281/zenodo.1243111; 2018. 
@@ -33,7 +33,7 @@ Our algorithm was scored several times in the official phase, the best challenge
 7. Rafal Baranowski 25 EKG na XXV-lecie SENIT (ECG atlas in Polish, from Kasprowisko 2019 conference)
 8. Krasteva, V. T., Jekova, I. I., & Christov, I. I. (2006). Automatic detection of premature atrial contractions in the electrocardiogram. Electrotechniques Electronics E & E, 9, 10
 
-### Links###
+### Links
 https://physionetchallenges.github.io/2020/ - PhysioNet/CinC challenges main pagecin
 https://www.cinc2020.org/ - Computing in Cardiology 2020 - link to full paper
 
