@@ -1,34 +1,37 @@
-# Example prediction code for MATLAB for the PhysioNet/CinC Challenge 2020
+#Objective
+Here we describe our algorithm develop on The PhysioNet/Computing in Cardiology Challenge 2020 [1]. The goal of the 2020 Challenge is to identify the clinical diagnosis from 12-lead ECG recordings. The poster presents features that we used in classification. We also test features classification  power base on simple filter approach [2].
 
-## Contents
 
-This code uses two main scripts to train the model and classify the data:
+##Algorithm 
+The algorithm has 3 steps: ECG pre-processing features extraction and classification. A sketchof the algorithm is shown in figure on the right. Our solution is based on bootstrap-aggregated (bagged) decision trees.
+Signal preprocessing 
+First, we load data from a file, we used a similar approach as an example. From the header file, we utilize age and sex data as classification features and gain and sample frequency for signal calibration. After calibration, we perform signal filtration. We used a median filter to remove some noise and the Butterworth high pass filter at cut-off frequency = 1 Hz to remove isoline’s floating. 
 
-* `train_model.m` Train your model. Add your model code to the `train_12ECG_model` function. It also performs all file input and output. **Do not** edit this script or we will be unable to evaluate your submission.
-* `driver.m` is the classifier which calls the output from your train_model. It also performs all file input and output. **Do not** edit this script or we will be unable to evaluate your submission.
+##Features 
+In our algorithm we base on PhysioNet-Cardiovascular-Signal-Toolbox [3]. We used the following set of features: 
+Global Electrical Heterogeneity  (GEH features) – such as in example code, this group contains 22 parameters based on spatial ventricular gradient vector (SVG) such as SVG magnitude, SVG elevation, SVG azimuth, etc. 
+AF features – function AF_features.m in ECG_Analysis_Tools – this subset of features provide analysis of variability in RR interval and some sophisticated features such as coefficient if fuzzy measure entropy etc. [4]
+Ratio of PVC beat – we use modified PVC_detect.m function to detect premature ventricular contraction beats[3]. As feature we use ratio of PVC beats to all recorded ECG beats. 
+ECG periods –wavedet_3D_ECGKit function return time of characteristic points in ECG – based on it we write function that calculate some ECG periods, selected from literature [5, 6, 7]: PR, QS, QR, PT, TP. Mentioned periods are shown on image (on the left). We also calculate RAPR which is a ratio of PR and RR.
+ECG morphology parameters – we also calculate QRS area [8] for each lead (as integrated ECG signal between Q and S points)  ST elevation as difference between value of ECG in J-point and isoline. J-point was defined as local extremum after QRSend points.R elevation as difference of value of ECG in R points and isoline. Methods shown on the left.
 
-Check the code in these files for the input and output formats for the `train_model` and `driver` scripts.
+##Classification algorithm
+We use build-in MATLAB, The Classification Learner app to choose the best classifier. Forests classification supported vector machine; k-nearest neighbor classifier was tested. As training data, we use all described features obtained for all samples in the challenge data set. Only valid recording, with one scored diagnose, is evaluated.Bootstrap-aggregated (bagged) decision trees shown the best accuracy and was chosen to perform the classification task.
+Our algorithm was scored several times in the official phase, the best challenge score obtained be our team is 0,308
 
-To create and save your model, you should edit `train_12ECG_classifier.m` script. Note that you should not change the input arguments of the `train_12ECG_classifier` function or add output arguments. The needed models and parameters should be saved in a separated file. In the sample code, an additional script, `get_12ECG_features.m`, is used to extract hand-crafted features. 
+### Literature
+1. Goldberger, A., Amaral, L., Glass, L., Hausdorff, J., Ivanov, P. C., Mark, R., ... & Stanley, H. E. (2000). PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals. Circulation [Online]. 101 (23), pp. e215–e220
+2. John G. Kohavi R. (1997) "Wrappers for feature subset selection", Artificial Intelligence, Vol.97, No.1-2, pp.272-324.
+3. Vest A, Da Poian G, Li Q, Liu C, Nemati S, Shah A, Clifford GD, "An Open Source Benchmarked Toolbox for Cardiovascular Waveform and Interval Analysis", Physiological measurement 39, no. 10 (2018): 105004. DOI:10.5281/zenodo.1243111; 2018. 
+4. Q. Li, C. Y. Liu, J. Oster and G. D. Clifford. Chapter: Signal processing and feature selection preprocessing for classificationin noisy healthcare data. In book: Machine Learning for Healthcare Technologies, Edition: 1st, Publisher: IET, Editors: David A. Clifton, 2016.
+5. Mao, L., Chen, H., Bai, J., Wei, J., Li, Q., & Zhang, R. (2019, October). Automated Detection of First-Degree Atrioventricular Block Using ECGs. In International Conference on Health Information Science (pp. 156-167). Springer, Cham.
+6. Elgendi, M., Jonkman, M., & De Boer, F. (2008, August). Premature atrial complexes detection using the Fisher Linear Discriminant. In 2008 7th IEEE International Conference on Cognitive Informatics (pp. 83-88). IEEE.
+7. Rafa³ Baranowski 25 EKG na XXV-lecie SENIT (ECG atlas in Polish, from Kasprowisko 2019 conference)
+7. Krasteva, V. T., Jekova, I. I., & Christov, I. I. (2006). Automatic detection of premature atrial contractions in the electrocardiogram. Electrotechniques Electronics E & E, 9, 10
 
-To run your classifier, you should edit the `run_12ECG_classifier.m` script, which takes a single recording as input and outputs the predicted classes and probabilities. Please, keep the formats of both outputs as they are shown in the example. You should not change the inputs and outputs of `run_12ECG_classifier` function. The needed models and parameters can be loaded in the `load_12ECG_model` function.
-
-Check the code in these files for the input and output formats for the `load_12ECG_model` and `run_12ECG_classifier` functions.
-
-## Running
-
-You can run this prediction code by starting MATLAB and running
-
-    train_model(training_data, model)
-    driver(model, test_data, test_outputs)
-
-where `training_data` is a directory of training data files, `model` is a directory of files for the model, `test_data` is the directory of test data files, and `test_outputs` is a directory of classifier outputs.  The [PhysioNet/CinC 2020 webpage](https://physionetchallenges.github.io/2020/) provides a training database with data files and a description of the contents and structure of these files.
-
-## Submission
-
-The `driver.m`, `get_12ECG_score.m`, and `get_12ECG_features.m` scripts must be in the root path of your repository. If they are inside a folder, then the submission will be unsuccessful.
-
-## Details
+## Links
+https://physionetchallenges.github.io/2020/ - PhysioNet/CinC challenges main pagecin
+https://www.cinc2020.org/ - Computing in Cardiology 2020 - link to full paper
 
 The code uses three main toolboxes:
 - HRV toolbox to compute the RR intervals. https://github.com/cliffordlab/PhysioNet-Cardiovascular-Signal-Toolbox.git. 
